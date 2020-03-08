@@ -1,18 +1,21 @@
 package main
 
 import (
-	"archive/zip"
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path"
 	"strings"
+	"sync"
 
 )
-
 
 func main() {
 	var pathFile string
@@ -28,49 +31,110 @@ func main() {
 	fileReader, err := os.Open(pathFile)
 	check(err)
 
-	fileNameWithoutExt := strings.TrimSuffix(pathFile, path.Ext(pathFile))
-
-	outputFile := fileNameWithoutExt + ".zip"
-
-	newZipFile, err := os.Create(outputFile)
-	check(err)
-
-	defer newZipFile.Close()
-
-	zipWriter := zip.NewWriter(newZipFile)
-	defer zipWriter.Close()
-
-	f, err := zipWriter.Create(pathFile)
-	check(err)
 	r := bufio.NewReader(fileReader)
-	w := bufio.NewWriter(f)
-	size := r.Size()
-	i := 0
-	blockSize := 100000
-	for ; ; i++ {
-		data := make([]byte, blockSize)
-		numberReadBytes, err := r.Read(data)
 
-		if err == io.EOF {
-			fmt.Println("END")
-			break
+	in := make(chan []byte, 3)
+	out := make(chan []byte, 3)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			data := make([]byte, blockSize)
+
+			n, err := r.Read(data)
+
+			if err == io.EOF {
+				fmt.Println("END read")
+				close(in)
+				fmt.Println("closed 'in'")
+				break
+			}
+
+			fmt.Printf("read %d bytes\n", n)
+
+			if n < blockSize {
+				data = data[:n]
+			}
+
+			in <- data
 		}
 
-		fmt.Printf("read %d bytes\n", numberReadBytes)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
-		if numberReadBytes < blockSize {
-			data = data[:numberReadBytes]
+		var wgZip sync.WaitGroup
+		for {
+
+			data, ok := (<-in)
+
+			if !ok {
+				go func() {
+					wgZip.Wait()
+					close(out)
+					fmt.Println("closed 'out'")
+				}()
+				break
+			}
+			wgZip.Add(1)
+			go func() {
+				defer wgZip.Done()
+				var buf bytes.Buffer
+				w := gzip.NewWriter(&buf)
+				w.Name = pathFile
+				n, err := w.Write(data)
+				if err != nil {
+					log.Fatal(err)
+				}
+				w.Close()
+
+				fmt.Printf("compressed %d bytes\n", n)
+
+				select {
+				case out <- buf.Bytes():
+				default:
+				}
+
+			}()
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fileNameWithoutExt := strings.TrimSuffix(pathFile, path.Ext(pathFile))
+
+		outputFile := fileNameWithoutExt + ".gzip"
+		newZipFile, err := os.Create(outputFile)
+		check(err)
+
+		defer newZipFile.Close()
+
+		for {
+			data, ok := (<-out)
+			if !ok {
+				fmt.Println("stop write")
+				break
+			}
+
+			n, err := newZipFile.Write(data)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("wrote %d bytes\n", n)
 		}
 
-		numberWriteBytes, err := w.Write(data)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("wrote %d bytes\n", numberWriteBytes)
-	}
+	}()
+	go func() {
+		http.ListenAndServe("localhost:8080", nil)
 
-	fmt.Printf("done. size = %d   i = %d", size, i)
-
+	}()
+	wg.Wait()
+	fmt.Printf("done.")
 }
 
 func check(err error) {
@@ -79,35 +143,4 @@ func check(err error) {
 	}
 }
 
-// func read(c chan<- []byte, r *bufio.Reader) error {
-// 	data := make([]byte, blockSize)
-// 	n, err := r.Read(data)
-
-// 	if err == io.EOF {
-// 		return err
-// 	}
-
-// 	fmt.Printf("read  %d bytes\n", n)
-
-// 	if n < blockSize {
-// 		data = data[:n]
-// 	}
-// 	c <- data
-// 	return nil
-// }
-
-// func write(c <-chan []byte, w *bufio.Writer, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-// 	t, ok := (<-c)
-// 	if !ok {
-// 		fmt.Print("Chanel is closed")
-// 		return
-// 	}
-
-// 	n, err := w.Write(t)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	fmt.Printf("wrote %d bytes\n", n)
-
-// }
+var blockSize = 1000000
