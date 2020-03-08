@@ -10,14 +10,10 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
+
 )
 
-func check(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
+
 func main() {
 	var pathFile string
 	flag.StringVar(&pathFile, "file", "", "Path of file to compress")
@@ -46,56 +42,72 @@ func main() {
 
 	f, err := zipWriter.Create(pathFile)
 	check(err)
-
-	c := make(chan []byte, 3)
 	r := bufio.NewReader(fileReader)
 	w := bufio.NewWriter(f)
-
 	size := r.Size()
-	count := size/blockSize + 1
-	var wg sync.WaitGroup
-	wg.Add(count)
+	i := 0
+	blockSize := 100000
+	for ; ; i++ {
+		data := make([]byte, blockSize)
+		numberReadBytes, err := r.Read(data)
 
-	for i := 0; i < count; i++ {
-		go read(c, r, &wg)
-		write(c, w)
+		if err == io.EOF {
+			fmt.Println("END")
+			break
+		}
+
+		fmt.Printf("read %d bytes\n", numberReadBytes)
+
+		if numberReadBytes < blockSize {
+			data = data[:numberReadBytes]
+		}
+
+		numberWriteBytes, err := w.Write(data)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("wrote %d bytes\n", numberWriteBytes)
 	}
 
-	wg.Wait()
+	fmt.Printf("done. size = %d   i = %d", size, i)
+
 }
 
-var blockSize = 1000
-
-func read(c chan<- []byte, r *bufio.Reader, wg *sync.WaitGroup) {
-	data := make([]byte, blockSize)
-	n, err := r.Read(data)
-
-	if err == io.EOF {
-		// close(c)
-		fmt.Println("EOF")
-
-		return
-	}
-
-	fmt.Printf("read  %d bytes\n", n)
-
-	if n < blockSize {
-		data = data[:n]
-	}
-	c <- data
-	wg.Done()
-}
-
-func write(c <-chan []byte, w *bufio.Writer) {
-	t, ok := (<-c)
-	if !ok {
-		fmt.Print("Chanel is closed")
-		return
-	}
-
-	n, err := w.Write(t)
+func check(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("wrote %d bytes\n", n)
 }
+
+// func read(c chan<- []byte, r *bufio.Reader) error {
+// 	data := make([]byte, blockSize)
+// 	n, err := r.Read(data)
+
+// 	if err == io.EOF {
+// 		return err
+// 	}
+
+// 	fmt.Printf("read  %d bytes\n", n)
+
+// 	if n < blockSize {
+// 		data = data[:n]
+// 	}
+// 	c <- data
+// 	return nil
+// }
+
+// func write(c <-chan []byte, w *bufio.Writer, wg *sync.WaitGroup) {
+// 	defer wg.Done()
+// 	t, ok := (<-c)
+// 	if !ok {
+// 		fmt.Print("Chanel is closed")
+// 		return
+// 	}
+
+// 	n, err := w.Write(t)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	fmt.Printf("wrote %d bytes\n", n)
+
+// }
