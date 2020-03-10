@@ -12,7 +12,7 @@ type readerByte struct {
 	blockSize int
 }
 
-func NewReader(r *bufio.Reader, blockSize int) Reader {
+func NewBufReader(r *bufio.Reader, blockSize int) Reader {
 	return readerByte{r: r, blockSize: blockSize}
 }
 
