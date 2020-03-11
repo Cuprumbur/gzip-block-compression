@@ -2,13 +2,13 @@ package main
 
 import (
 	blockcompressor "blockcompressor/app"
-	"fmt"
 	"log"
 	"os"
-	// _ "net/http/pprof"
+	"time"
 )
 
 func main() {
+	start := time.Now()
 
 	command := os.Args[1]
 	pathFile := os.Args[2]
@@ -25,11 +25,8 @@ func main() {
 		log.Fatal("dest path file not provided")
 	}
 
-	blockcompressor.Run(pathFile, destPathFile, 200000, 1, command)
+	blockcompressor.Run(pathFile, destPathFile, 1000000, 5, command)
 
-	// go func() {
-	// 	http.ListenAndServe("localhost:8080", nil)
-	// }()
-
-	fmt.Printf("done.")
+	elapsed := time.Since(start)
+	log.Printf("elapsed %s", elapsed)
 }
