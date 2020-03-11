@@ -1,19 +1,17 @@
 package reader
 
 import (
-	"bufio"
-	"fmt"
 	"io"
 	"log"
 )
 
 type readerByte struct {
-	r         *bufio.Reader
+	t         io.Reader
 	blockSize int
 }
 
-func NewBufReader(r *bufio.Reader, blockSize int) Reader {
-	return readerByte{r: r, blockSize: blockSize}
+func NewReader(r io.Reader, blockSize int) Reader {
+	return readerByte{t: r, blockSize: blockSize}
 }
 
 func (r readerByte) Read() <-chan []byte {
@@ -23,10 +21,9 @@ func (r readerByte) Read() <-chan []byte {
 	go func() {
 		for {
 			data := make([]byte, r.blockSize)
-			n, err := r.r.Read(data)
+			n, err := r.t.Read(data)
 
 			if err == io.EOF {
-				fmt.Println("END read")
 				break
 			} else if err != nil {
 				log.Fatal(err)

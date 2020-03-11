@@ -1,26 +1,26 @@
 package writer
 
 import (
-	"bufio"
+	"io"
 	"log"
 	"sync"
 )
 
 type bufWriter struct {
-	w *bufio.Writer
+	w io.Writer
 }
 
-func NewBufWriter(w *bufio.Writer) Writer {
+func NewWriter(w io.Writer) Writer {
 	return bufWriter{w: w}
 }
 
-func (w bufWriter) Write(wg *sync.WaitGroup, c <-chan []byte) {
+func (b bufWriter) Write(wg *sync.WaitGroup, c <-chan []byte) {
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for data := range c {
-			_, err := w.w.Write(data)
+		for bytes := range c {
+			_, err := b.w.Write(bytes)
 			if err != nil {
 				log.Fatal(err)
 			}

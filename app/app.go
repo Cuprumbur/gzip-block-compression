@@ -7,22 +7,23 @@ import (
 	"sync"
 )
 
-type BlockCompressor struct {
+type App struct {
 	workers int
 	r       reader.Reader
 	c       compress.ContextCompress
 	w       writer.Writer
 }
 
-func NewBlockCompressor(r reader.Reader, c compress.ContextCompress, w writer.Writer) BlockCompressor {
-	return BlockCompressor{r: r, c: c, w: w}
+func NewApp(r reader.Reader, c compress.ContextCompress, w writer.Writer, workers int) App {
+	return App{r: r, c: c, w: w, workers: workers}
 }
 
-func (b BlockCompressor) Run(algorithmCompress string) {
+func (b App) Run(algorithm string) {
+
 	jobs := b.r.Read()
 
-	compressStrategy := b.c.GetCompressStrategy(algorithmCompress)
-	results := make([]<-chan []byte, b.workers)
+	compressStrategy := b.c.GetCompressStrategy(algorithm)
+	results := make([]<-chan []byte, 0, b.workers)
 
 	for i := 0; i < b.workers; i++ {
 		worker := compressStrategy.Run(jobs)
@@ -41,12 +42,12 @@ func merge(chans []<-chan []byte) <-chan []byte {
 	var wg sync.WaitGroup
 	wg.Add(len(chans))
 	for _, c := range chans {
-		go func() {
+		go func(ch <-chan []byte) {
 			defer wg.Done()
-			for d := range c {
+			for d := range ch {
 				merged <- d
 			}
-		}()
+		}(c)
 	}
 
 	go func() {
