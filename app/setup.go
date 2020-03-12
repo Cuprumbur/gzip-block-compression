@@ -15,7 +15,15 @@ func Run(filePathIn string, filePathOut string, blockSize int, workers int, algo
 		log.Fatal(err)
 	}
 	defer file.Close()
-	br := reader.NewReader(file, blockSize)
+	var br reader.Reader
+	if algorithm == "c" {
+		br = reader.NewReader(file, blockSize)
+	} else if algorithm == "d" {
+
+		br = reader.NewReaderGzip(file, blockSize)
+	} else {
+		log.Fatal("no reader")
+	}
 
 	m := make(map[string]command.Command)
 	cleanPath := path.Clean(filePathIn)
@@ -28,8 +36,15 @@ func Run(filePathIn string, filePathOut string, blockSize int, workers int, algo
 		log.Fatal(err)
 	}
 	defer outFile.Close()
-	bw := writer.NewWriter(outFile)
+
+	var bw writer.Writer
+	if algorithm == "c" {
+		bw = writer.NewWriter(outFile)
+	} else if algorithm == "d" {
+		bw = writer.NewDecWriter(outFile)
+	}
 
 	app := NewApp(br, context, bw, workers)
 	app.Start(algorithm)
+
 }

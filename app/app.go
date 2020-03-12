@@ -44,7 +44,7 @@ func runWorkers(jobs <-chan *bytes.Reader, app App, instruction string) <-chan *
 
 	merged := merge(results...)
 
-	res := order(merged)
+	res := orderByIndex(merged)
 
 	return res
 }
@@ -54,7 +54,7 @@ func mark(jobs <-chan *bytes.Reader) <-chan command.Block {
 	go func() {
 		i := startIndex
 		for j := range jobs {
-			c <- command.Block{R: j, Indx: i}
+			c <- command.Block{R: j, Index: i}
 			i++
 		}
 		close(c)
@@ -86,13 +86,13 @@ func merge(chans ...<-chan command.Block) <-chan command.Block {
 	return merged
 }
 
-func order(merged <-chan command.Block) <-chan *bytes.Reader {
+func orderByIndex(blocks <-chan command.Block) <-chan *bytes.Reader {
 	res := make(chan *bytes.Reader)
 	go func() {
 		i := startIndex
 		m := make(map[int]*bytes.Reader)
-		for data := range merged {
-			m[data.Indx] = data.R
+		for block := range blocks {
+			m[block.Index] = block.R
 
 			if v, ok := m[i]; ok {
 				res <- v
@@ -114,5 +114,4 @@ func order(merged <-chan command.Block) <-chan *bytes.Reader {
 	}()
 
 	return res
-
 }

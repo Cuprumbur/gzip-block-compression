@@ -5,7 +5,7 @@ import (
 )
 
 type Block struct {
-	Indx int
+	Index int
 	R    *bytes.Reader
 }
 
@@ -28,3 +28,4 @@ func NewContext(commands map[string]Command) Context {
 func (c context) GetStrategy(command string) Command {
 	return c.commands[command]
 }
+

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/binary"
 	"io"
 	"log"
 )
@@ -12,6 +13,17 @@ const copyBlockSize = 1000000
 
 type gzipCompress struct {
 	fileName string
+}
+
+func ToByte(i int64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(i))
+	return b
+}
+
+func ToInt(b []byte) int64 {
+	i := int64(binary.BigEndian.Uint64(b))
+	return i
 }
 
 func NewGzipCompress(fileName string) Command {
@@ -25,8 +37,6 @@ func (g gzipCompress) Run(jobs <-chan Block) <-chan Block {
 		for block := range jobs {
 			var buf bytes.Buffer
 			w := gzip.NewWriter(&buf)
-			w.Name = g.fileName
-			
 			for {
 				_, err := io.CopyN(w, block.R, copyBlockSize)
 				if err == io.EOF {
@@ -37,7 +47,7 @@ func (g gzipCompress) Run(jobs <-chan Block) <-chan Block {
 			}
 			w.Close()
 
-			result <- Block{R: bytes.NewReader(buf.Bytes()), Indx: block.Indx}
+			result <- Block{R: bytes.NewReader(buf.Bytes()), Index: block.Index}
 		}
 
 		close(result)
@@ -84,7 +94,7 @@ func (g gzipDecompress) Run(jobs <-chan Block) <-chan Block {
 				}
 			}
 
-			result <- Block{R: bytes.NewReader(buf.Bytes()), Indx: block.Indx}
+			result <- Block{R: bytes.NewReader(buf.Bytes()), Index: block.Index}
 		}
 
 		close(result)

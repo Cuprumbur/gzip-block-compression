@@ -25,7 +25,7 @@ func main() {
 		log.Fatal("dest path file not provided")
 	}
 
-	blockcompressor.Run(pathFile, destPathFile, 1000000, 5, command)
+	blockcompressor.Run(pathFile, destPathFile, 1000000, 1, command)
 
 	elapsed := time.Since(start)
 	log.Printf("elapsed %s", elapsed)
