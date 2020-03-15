@@ -2,6 +2,8 @@ package converter
 
 import (
 	"blockconverter"
+	"bytes"
+	"compress/gzip"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,6 +32,32 @@ func TestGzipCompress(t *testing.T) {
 
 }
 
+func TestGzipValidHeader(t *testing.T) {
+	t.Run("valid gzip header after compress", func(t *testing.T) {
+		gc := NewGzipCompress()
+		c := make(chan blockconverter.Block)
+		index := int64(7)
+		text := "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+
+		b := []byte(text)
+
+		go func() {
+
+			c <- blockconverter.Block{Index: index, B: b}
+		}()
+
+		result := gc.Run(c)
+
+		block := <-result
+		assert.Equal(t, index, block.Index)
+		assert.Greater(t, len(b), len(block.B))
+
+		br := bytes.NewReader(block.B)
+		_, err := gzip.NewReader(br)
+		assert.Nil(t, err)
+	})
+
+}
 func TestGzipDecompress(t *testing.T) {
 
 	t.Run("decompress data", func(t *testing.T) {

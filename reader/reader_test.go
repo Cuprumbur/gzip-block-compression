@@ -1,9 +1,9 @@
 package reader
 
 import (
+	"blockconverter"
 	"blockconverter/mocks"
 	"bytes"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -12,30 +12,33 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func BenchmarkRead(t *testing.B) {
-
-	// arrange
-
+func BenchmarkRead(b *testing.B) {
 	blockSize := int64(1000000)
 	text := "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
 	text = strings.Repeat(text, 100)
 	exp := []byte(text)
 	m := mocks.BlockInfo{}
 	m.On("Get", mock.Anything).Return(int64(0), blockSize, nil)
-	b := bytes.NewReader(exp)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	r := NewByteReader(&wg, b, &m)
+	for i := 0; i < b.N; i++ {
+		// arrange
 
-	// act
-	data := make([]byte, 0, len(exp))
-	for s := range r.Read() {
-		data = append(data, s.B...)
+		br := bytes.NewReader(exp)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		r := NewReader(&wg, br, &m)
+
+		// act
+
+		data := make([]byte, 0, len(exp))
+		for s := range r.Read() {
+			data = append(data, s.B...)
+		}
+
+		// assert
+		assert.Equal(b, exp, data)
 	}
-
-	// assert
-	assert.Equal(t, exp, data)
 }
 func TestRead(t *testing.T) {
 
@@ -43,7 +46,7 @@ func TestRead(t *testing.T) {
 		// arrange
 
 		blockSize := int64(3)
-		text := "Lorem Ipsum is " //simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
+		text := "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum."
 		exp := []byte(text)
 		m := mocks.BlockInfo{}
 		m.On("Get", mock.Anything).Return(int64(0), blockSize, nil)
@@ -51,7 +54,7 @@ func TestRead(t *testing.T) {
 
 		var wg sync.WaitGroup
 		wg.Add(1)
-		r := NewByteReader(&wg, b, &m)
+		r := NewReader(&wg, b, &m)
 
 		// act
 		data := make([]byte, 0, len(exp))
@@ -71,7 +74,7 @@ func TestBlockInfo(t *testing.T) {
 		blockSize := int64(3)
 		var buf bytes.Buffer
 
-		_, err := fmt.Fprintf(&buf, "%b %b ", index, blockSize)
+		err := blockconverter.SetData(&buf, index, blockSize)
 		if err != nil {
 			t.Fatal(err)
 		}

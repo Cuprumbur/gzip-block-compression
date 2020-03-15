@@ -2,9 +2,8 @@ package writer
 
 import (
 	"blockconverter"
-	"bufio"
+	"blockconverter/reader"
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -12,10 +11,11 @@ import (
 
 type fileWriter struct {
 	file string
+	c    string
 }
 
-func NewFileWriter(file string) blockconverter.Writer {
-	return fileWriter{file}
+func NewFileWriter(file string, c string) blockconverter.Writer {
+	return fileWriter{file, c}
 }
 
 func (b fileWriter) Write(c <-chan blockconverter.Block) <-chan struct{} {
@@ -24,7 +24,7 @@ func (b fileWriter) Write(c <-chan blockconverter.Block) <-chan struct{} {
 		log.Fatal(err)
 	}
 	done := make(chan struct{})
-	w := NewWriterF(file)
+	w := NewWriterOrder(file, b.c)
 
 	go func() {
 		<-w.Write(c)
@@ -39,41 +39,46 @@ func (b fileWriter) Write(c <-chan blockconverter.Block) <-chan struct{} {
 
 type ff struct {
 	w io.Writer
+	c string
 }
 
-func NewWriterF(w io.Writer) blockconverter.Writer {
-	return ff{w}
-}
-
-func SetData(r io.Writer, index int64, size int64) error {
-
-	_, err := fmt.Fprintf(r, "%b %b", index, size)
-	if err != nil {
-		return err
-	}
-	return nil
+func NewWriterOrder(w io.Writer, c string) blockconverter.Writer {
+	return ff{w, c}
 }
 
 func (f ff) Write(blocks <-chan blockconverter.Block) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
+		if f.c == "d" {
+			b := orderByIndex(blocks)
+			for i := range b {
 
+				r := bytes.NewReader(i)
+
+				n, err := r.WriteTo(f.w)
+				_ = n
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+
+		}
 		for b := range blocks {
-			r := bytes.NewReader(b.B)
-			bw := bufio.NewWriter(f.w)
 
-			err := SetData(bw, b.Index, r.Size())
-			if err != nil {
-				log.Fatal(err)
-			}
-			bw.Flush()
+			if f.c == "c" {
+				r := bytes.NewReader(b.B)
+				err := blockconverter.SetData(f.w, b.Index, r.Size())
+				if err != nil {
+					log.Fatal(err)
+				}
 
-			n, err := r.WriteTo(bw)
-			_ = n
-			if err != nil {
-				log.Fatal(err)
+				n, err := r.WriteTo(f.w)
+				_ = n
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
-			bw.Flush()
+
 		}
 		close(done)
 	}()
@@ -81,30 +86,33 @@ func (f ff) Write(blocks <-chan blockconverter.Block) <-chan struct{} {
 	return done
 }
 
-// type decWriter struct {
-// 	w io.Writer
-// }
+func orderByIndex(blocks <-chan blockconverter.Block) <-chan []byte {
+	res := make(chan []byte)
+	go func() {
+		i := reader.StartBlockIndex
+		m := make(map[int64][]byte)
+		for block := range blocks {
+			m[block.Index] = block.B
 
-// func NewDecWriter(w io.Writer) Writer {
-// 	return decWriter{w: w}
-// }
+			if v, ok := m[i]; ok {
+				res <- v
+				delete(m, i)
 
-// func (b decWriter) Write(wg *sync.WaitGroup, c <-chan *bytes.Reader) {
-// 	wg.Add(1)
-// 	go func() {
-// 		for r := range c {
-// 			n := r.Size()
-// 			s, err := io.CopyN(b.w, r, n)
-// 			if n != s {
-// 				log.Fatal("not equal")
-// 			}
+				i++
+			}
+		}
+		for {
+			if v, ok := m[i]; ok {
+				res <- v
+				delete(m, i)
+				i++
+			} else {
+				break
+			}
+		}
 
-// 			if err == io.EOF {
-// 				break
-// 			} else if err != nil {
-// 				log.Fatal(err)
-// 			}
-// 		}
-// 		wg.Done()
-// 	}()
-// }
+		close(res)
+	}()
+
+	return res
+}

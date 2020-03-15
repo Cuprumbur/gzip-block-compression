@@ -4,7 +4,7 @@ import (
 	"blockconverter"
 	"bufio"
 	"bytes"
-	"fmt"
+	"encoding/binary"
 	"io"
 	"log"
 	"os"
@@ -13,11 +13,11 @@ import (
 
 type fileReader struct {
 	file string
-	bs   BlockInfo
+	bi   BlockInfo
 }
 
-func NewFileReader(file string, bs BlockInfo) blockconverter.Reader {
-	return fileReader{file, bs}
+func NewFileReader(file string, bi BlockInfo) blockconverter.Reader {
+	return fileReader{file, bi}
 }
 
 func (f fileReader) Read() <-chan blockconverter.Block {
@@ -28,7 +28,7 @@ func (f fileReader) Read() <-chan blockconverter.Block {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	r := NewByteReader(&wg, file, f.bs)
+	r := NewReader(&wg, file, f.bi)
 
 	go func() {
 		wg.Wait()
@@ -40,12 +40,12 @@ func (f fileReader) Read() <-chan blockconverter.Block {
 
 type ioReader struct {
 	r  io.Reader
-	bs BlockInfo
+	bi BlockInfo
 	wg *sync.WaitGroup
 }
 
-func NewByteReader(wg *sync.WaitGroup, r io.Reader, bs BlockInfo) blockconverter.Reader {
-	return ioReader{r, bs, wg}
+func NewReader(wg *sync.WaitGroup, r io.Reader, bi BlockInfo) blockconverter.Reader {
+	return ioReader{r, bi, wg}
 }
 
 func (b ioReader) Read() <-chan blockconverter.Block {
@@ -53,13 +53,16 @@ func (b ioReader) Read() <-chan blockconverter.Block {
 	go func() {
 
 		for {
-			index, size, err := b.bs.Get(b.r)
-			if err != nil {
+			index, size, err := b.bi.Get(b.r)
+			if err == io.EOF {
+				break
+			} else if err != nil {
 				log.Fatal(err)
 			}
 			var buf bytes.Buffer
 			w := bufio.NewWriter(&buf)
 			_, err = io.CopyN(w, b.r, size)
+			w.Flush()
 			c <- blockconverter.Block{Index: index, B: buf.Bytes()}
 			if err == io.EOF {
 				break
@@ -106,10 +109,29 @@ func NewCompressedBlockInfo() BlockInfo {
 }
 
 func (b compressedBlockInfo) Get(r io.Reader) (index int64, size int64, err error) {
-	_, err = fmt.Fscanf(r, "%b %b", &index, &size)
+	i := make([]byte, 8)
+	_, err = r.Read(i)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	index = ToInt(i)
+
+	s := make([]byte, 8)
+	_, err = r.Read(s)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	size = ToInt(s)
 	if err != nil {
 		return 0, 0, err
 	}
 
 	return
+}
+
+func ToInt(b []byte) int64 {
+	i := int64(binary.BigEndian.Uint64(b))
+	return i
 }

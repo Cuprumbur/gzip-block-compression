@@ -68,10 +68,12 @@ func (g gzipCompress) Run(jobs <-chan blockconverter.Block) <-chan blockconverte
 
 	go func() {
 		for block := range jobs {
-			r := bytes.NewReader(block.B)
 			var buf bytes.Buffer
 			w := gzip.NewWriter(&buf)
-			_, err := io.CopyN(w, r, r.Size())
+			r := bytes.NewReader(block.B)
+			n, err := io.CopyN(w, r, r.Size())
+
+			_ = n
 			if err != nil {
 				log.Fatal()
 			}

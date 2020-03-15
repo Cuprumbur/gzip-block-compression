@@ -1,5 +1,10 @@
 package blockconverter
 
+import (
+	"encoding/binary"
+	"io"
+)
+
 type Block struct {
 	Index int64
 	B     []byte
@@ -40,4 +45,24 @@ func (a App) Convert() {
 	convertedBlock := a.c.Run(block)
 
 	<-a.w.Write(convertedBlock)
+}
+
+func toByte(i int64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(i))
+	return b
+}
+
+func SetData(r io.Writer, index int64, size int64) error {
+
+	_, err := r.Write(toByte(index))
+	if err != nil {
+		return err
+	}
+	_, err = r.Write(toByte(size))
+
+	if err != nil {
+		return err
+	}
+	return nil
 }

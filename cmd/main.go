@@ -71,7 +71,7 @@ func (a compressFactory) NewConverter() blockconverter.Converter {
 }
 
 func (a compressFactory) NewWriter() blockconverter.Writer {
-	return writer.NewFileWriter(a.fileOut)
+	return writer.NewFileWriter(a.fileOut, "c")
 }
 
 type decompressFactory struct {
@@ -93,5 +93,5 @@ func (a decompressFactory) NewConverter() blockconverter.Converter {
 }
 
 func (a decompressFactory) NewWriter() blockconverter.Writer {
-	return writer.NewFileWriter(a.fileOut)
+	return writer.NewFileWriter(a.fileOut, "d")
 }
