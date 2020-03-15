@@ -1,11 +1,8 @@
-module blockcompressor
+module blockconverter
 
 go 1.13
 
 require (
-	github.com/klauspost/compress v1.10.2 // indirect
-	github.com/mailru/easyjson v0.7.1 // indirect
-	github.com/stretchr/testify v1.2.2
-	github.com/vektra/mockery v0.0.0-20181123154057-e78b021dcbb5 // indirect
-	golang.org/x/tools v0.0.0-20200309202150-20ab64c0d93f // indirect
+	github.com/bxcodec/go-clean-arch v2.0.1+incompatible // indirect
+	github.com/stretchr/testify v1.5.1
 )
