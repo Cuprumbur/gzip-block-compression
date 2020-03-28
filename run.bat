@@ -1,1 +1,0 @@
-go run ./cmd/main.go c "C:\Users\Ochir_Darmaev\repos\tab-nine-whitelist\data\Fireplace.mp4" "C:\Users\Ochir_Darmaev\repos\tab-nine-whitelist\data\Fireplace.ss"
